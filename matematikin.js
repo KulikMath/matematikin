@@ -275,7 +275,7 @@ const _kpkDuaAngka = (a, b) => {
     if (a === 0 || b === 0) return 0;
 
     // Rumus mutlak: (A x B) / FPB
-    return Math.abs(a * b) / _fpbDuaAngka(a, b);
+    return Math.abs(a / _fpbDuaAngka(a, b) * b);
 };
 
 
@@ -1240,8 +1240,12 @@ const buattabelsoal = (arr = [], tempattabel = "", opsi = {}) => {
     if (typeof QRCode === 'undefined') {
          throw new Error("MATEMATIKIN: Library QRCode.js tidak ditemukan.");
     }
-    let bykbaris = arr.length;
-    let bykkolom = arr[0].length;
+    if (!Array.isArray(arr) || arr.length === 0) {
+        throw new Error("MATEMATIKIN: Array soal tidak boleh kosong.");
+    }
+    if (!document.getElementById(tempattabel)) {
+        throw new Error(`MATEMATIKIN: Elemen dengan id '${tempattabel}' tidak ditemukan.`);
+    }
     let teks = String.raw`<table class='w3-table-all tengah'>
         <thead>
             <th>NO</th><th>SOAL</th><th>SOLUSI</th>
@@ -1274,6 +1278,9 @@ const buattabelsoal = (arr = [], tempattabel = "", opsi = {}) => {
  */
 const arrayBukit = (banyakBilangan, jumlah) => {
     // 1. Validasi Input Mutlak
+    if (!Number.isInteger(banyakBilangan) || !Number.isInteger(jumlah)) {
+        throw new Error("MATEMATIKIN: banyakBilangan dan jumlah harus berupa bilangan bulat.");
+    }
     if (banyakBilangan <= 0 || jumlah <= 0) {
         throw new Error("MATEMATIKIN: banyakBilangan dan jumlah harus lebih dari 0.");
     }
@@ -1331,6 +1338,9 @@ const arrayBukit = (banyakBilangan, jumlah) => {
  */
 const arrayLembah = (banyakBilangan, jumlah) => {
     // 1. Validasi Input Mutlak
+    if (!Number.isInteger(banyakBilangan) || !Number.isInteger(jumlah)) {
+        throw new Error("MATEMATIKIN: banyakBilangan dan jumlah harus berupa bilangan bulat.");
+    }
     if (banyakBilangan <= 0 || jumlah <= 0) {
         throw new Error("MATEMATIKIN: banyakBilangan dan jumlah harus lebih dari 0.");
     }
@@ -1392,20 +1402,66 @@ const formatRibuan = (angka = 0) => {
     return angka.toLocaleString('id-ID');
 };
 
+// ==========================================
+// PEMBANTU FORMAT TITIK (INTERNAL)
+// Semua fungsi bertitik menerima dua format:
+//   - Array  : [x, y] atau [x, y, z]
+//   - Objek  : {x: ..., y: ...} atau {x: ..., y: ..., z: ...}
+// Hasil berupa titik akan dikembalikan dalam format yang sama dengan input.
+// ==========================================
+const _adalahTitikObjek = (t) =>
+    t !== null && typeof t === 'object' && !Array.isArray(t) && 'x' in t && 'y' in t;
+
+const _adalahTitik = (t) => Array.isArray(t) || _adalahTitikObjek(t);
+
+// Mengubah titik (array/objek) menjadi array koordinat
+const _keArrayTitik = (t) => {
+    if (Array.isArray(t)) return t;
+    if (_adalahTitikObjek(t)) {
+        return t.z !== undefined ? [t.x, t.y, t.z] : [t.x, t.y];
+    }
+    throw new Error("MATEMATIKIN: Titik harus berupa array [x, y] atau objek {x, y}.");
+};
+
+// Mengubah array koordinat kembali ke format asal (objek jika input berupa objek)
+const _keFormatTitik = (koordinat, titikAsal) => {
+    if (!_adalahTitikObjek(titikAsal)) return koordinat;
+    const [x, y, z] = koordinat;
+    return koordinat.length > 2 ? { x, y, z } : { x, y };
+};
+
+// Mengambil dua titik dari dua parameter, atau dari satu pasangan [titik1, titik2]
+const _ambilDuaTitik = (titik1, titik2) => {
+    if (
+        titik2 === undefined &&
+        Array.isArray(titik1) && titik1.length === 2 &&
+        _adalahTitik(titik1[0]) && _adalahTitik(titik1[1])
+    ) {
+        [titik1, titik2] = titik1;
+    }
+    return [_keArrayTitik(titik1), _keArrayTitik(titik2)];
+};
+
+// Mengubah garis (pasangan dua titik) menjadi [[x1, y1], [x2, y2]]
+const _keArrayGaris = (garis) => {
+    if (!Array.isArray(garis) || garis.length !== 2) {
+        throw new Error("MATEMATIKIN: Garis harus berupa pasangan dua titik.");
+    }
+    return garis.map(_keArrayTitik);
+};
+
 /**
 * Menghitung panjang garis (jarak) antara dua titik koordinat.
 * Mendukung geometri 2D, 3D, hingga n-dimensi secara otomatis.
+* Titik boleh berupa [x, y] atau {x, y}.
 */
 const panjangGaris = (titik1, titik2) => {
-    // 1. Fleksibilitas Input: 
-    // Mendeteksi jika pengguna memasukkan data dalam format nested array [[x1, y1], [x2, y2]]
-    if (Array.isArray(titik1) && titik1.length === 2 && Array.isArray(titik1[0]) && titik2 === undefined) {
-        titik2 = titik1[1];
-        titik1 = titik1[0];
-    }
+    // 1. Fleksibilitas Input:
+    // Mendukung dua parameter, atau satu pasangan [[x1, y1], [x2, y2]] / [{x, y}, {x, y}]
+    [titik1, titik2] = _ambilDuaTitik(titik1, titik2);
 
     // 2. Validasi Syarat Mutlak: Kedua titik harus memiliki dimensi yang sama
-    if (!Array.isArray(titik1) || !Array.isArray(titik2) || titik1.length !== titik2.length) {
+    if (titik1.length !== titik2.length) {
         throw new Error("MATEMATIKIN: Input harus berupa dua koordinat titik dengan dimensi yang sama.");
     }
 
@@ -1420,12 +1476,13 @@ const panjangGaris = (titik1, titik2) => {
 /**
  * Menghitung titik potong antara dua buah garis.
  * Menggunakan metode Determinan untuk menghindari jebakan garis vertikal (Infinity).
- * Mengembalikan koordinat [x, y].
+ * Setiap garis adalah pasangan dua titik; titik boleh berupa [x, y] atau {x, y}.
+ * Mengembalikan titik potong dalam format yang sama dengan titik pertama garis1.
  */
 const titikPotong = (garis1, garis2) => {
     // 1. Destrukturisasi Array (Membuat variabel lebih rapi tanpa [0][1] yang membingungkan)
-    const [[x1, y1], [x2, y2]] = garis1;
-    const [[x3, y3], [x4, y4]] = garis2;
+    const [[x1, y1], [x2, y2]] = _keArrayGaris(garis1);
+    const [[x3, y3], [x4, y4]] = _keArrayGaris(garis2);
 
     // 2. Hitung Penyebut (Determinan Utama)
     const penyebut = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
@@ -1444,33 +1501,41 @@ const titikPotong = (garis1, garis2) => {
     const xPotong = (t1 * (x3 - x4) - (x1 - x2) * t2) / penyebut;
     const yPotong = (t1 * (y3 - y4) - (y1 - y2) * t2) / penyebut;
 
-    return [xPotong, yPotong];
+    return _keFormatTitik([xPotong, yPotong], garis1[0]);
 };
 
 /**
  * Mencari koordinat titik yang membagi garis dari titik1 ke titik2 dengan perbandingan m : n.
  * Secara otomatis mendukung koordinat 2D, 3D, hingga n-dimensi.
+ * Titik boleh berupa [x, y] atau {x, y}; hasil mengikuti format titik1.
  */
 const titikBagiGaris = (titik1, titik2, m = 1, n = 1) => {
-    // 1. Validasi Mutlak: Memastikan dimensi (panjang array) kedua titik sama
-    if (!Array.isArray(titik1) || !Array.isArray(titik2) || titik1.length !== titik2.length) {
-        throw new Error("MATEMATIKIN: Input harus berupa array koordinat dengan dimensi yang sama.");
+    // 1. Normalisasi format titik (array/objek) menjadi array koordinat
+    const koordinat1 = _keArrayTitik(titik1);
+    const koordinat2 = _keArrayTitik(titik2);
+
+    // 2. Validasi Mutlak: Memastikan dimensi (panjang array) kedua titik sama
+    if (koordinat1.length !== koordinat2.length) {
+        throw new Error("MATEMATIKIN: Input harus berupa koordinat dengan dimensi yang sama.");
     }
 
-    // 2. Proteksi Matematika: Mencegah pembagian dengan nol
+    // 3. Proteksi Matematika: Mencegah pembagian dengan nol
     if (m + n === 0) {
         throw new Error("MATEMATIKIN: Jumlah rasio perbandingan (m + n) tidak boleh bernilai nol.");
     }
 
-    // 3. Eksekusi fungsional untuk seluruh sumbu (X, Y, Z, dst)
+    // 4. Eksekusi fungsional untuk seluruh sumbu (X, Y, Z, dst)
     // Rumus Baku: (m * X2 + n * X1) / (m + n)
-    return titik1.map((koordinat1, indeks) => {
-        return (m * titik2[indeks] + n * koordinat1) / (m + n);
+    const hasil = koordinat1.map((nilai1, indeks) => {
+        return (m * koordinat2[indeks] + n * nilai1) / (m + n);
     });
+
+    return _keFormatTitik(hasil, titik1);
 };
 
 /**
  * Mencari titik tengah di antara dua koordinat.
+ * Titik boleh berupa [x, y] atau {x, y}; hasil mengikuti format titik1.
  */
 const titikTengah = (titik1, titik2) => {
     // Terapkan prinsip DRY dengan mendelegasikan tugas ke titikBagiGaris
@@ -1480,13 +1545,13 @@ const titikTengah = (titik1, titik2) => {
 
 /**
  * Mencari titik pusat lingkaran yang melewati 3 titik koordinat (Titik Pusat Lingkaran Luar).
- * Mengembalikan array koordinat [x, y].
+ * Titik boleh berupa [x, y] atau {x, y}; hasil mengikuti format titik1.
  */
 const pusatLingkaran3Titik = (titik1, titik2, titik3) => {
     // 1. Destrukturisasi Modern (Bersih dan Ringkas)
-    const [x1, y1] = titik1;
-    const [x2, y2] = titik2;
-    const [x3, y3] = titik3;
+    const [x1, y1] = _keArrayTitik(titik1);
+    const [x2, y2] = _keArrayTitik(titik2);
+    const [x3, y3] = _keArrayTitik(titik3);
 
     // 2. Kalkulasi Vektor Skalar
     const a = x2 - x1;
@@ -1498,7 +1563,7 @@ const pusatLingkaran3Titik = (titik1, titik2, titik3) => {
     const f = (c * (x2 + x3)) + (d * (y2 + y3));
 
     // Determinan
-    const g = 2 * ((a * (y3 - y2)) - (d * (x2 - x3)));
+    const g = 2 * ((a * d) - (b * c));
 
     // 3. Validasi Titik Kolinier
     if (g === 0) {
@@ -1508,15 +1573,17 @@ const pusatLingkaran3Titik = (titik1, titik2, titik3) => {
     const centerX = ((d * e) - (b * f)) / g;
     const centerY = ((a * f) - (c * e)) / g;
 
-    return [centerX, centerY];
+    return _keFormatTitik([centerX, centerY], titik1);
 };
 
 /**
  * Mencari panjang jari-jari lingkaran yang melewati 3 titik koordinat.
  * Memanfaatkan Teorema Heron dan fungsi panjangGaris.
+ * Titik boleh berupa [x, y] atau {x, y}.
  */
 const jariLingkaran3Titik = (titik1, titik2, titik3) => {
     // 1. Manfaatkan fungsi panjangGaris yang sudah kita buat sebelumnya (Prinsip DRY!)
+    // panjangGaris sudah menangani format array maupun objek
     const sisiA = panjangGaris(titik1, titik2);
     const sisiB = panjangGaris(titik2, titik3);
     const sisiC = panjangGaris(titik3, titik1);
@@ -1540,42 +1607,32 @@ const jariLingkaran3Titik = (titik1, titik2, titik3) => {
 
 /**
  * Menghitung gradien (kemiringan) dari sebuah garis yang melalui dua titik.
- * Mendukung format nested array [[x1, y1], [x2, y2]] atau dua parameter ([x1, y1], [x2, y2]).
+ * Mendukung dua parameter (titik1, titik2) atau satu pasangan [titik1, titik2].
+ * Titik boleh berupa [x, y] atau {x, y}.
  * Mengembalikan Infinity untuk garis vertikal, dan NaN untuk titik yang sama.
  */
 const gradien = (titik1, titik2) => {
-    // 1. Fleksibilitas Input: Mendukung dua gaya penulisan koordinat
-    if (Array.isArray(titik1) && titik1.length === 2 && Array.isArray(titik1[0]) && titik2 === undefined) {
-        titik2 = titik1[1];
-        titik1 = titik1[0];
-    }
+    // 1. Fleksibilitas Input: Mendukung dua gaya penulisan koordinat (array maupun objek)
+    const [[x1, y1], [x2, y2]] = _ambilDuaTitik(titik1, titik2);
 
-    // 2. Validasi Mutlak: Pastikan input valid
-    if (!Array.isArray(titik1) || !Array.isArray(titik2)) {
-        throw new Error("MATEMATIKIN: Input harus berupa dua titik koordinat.");
-    }
-
-    // 3. Destrukturisasi Modern (Sangat ringkas)
-    const [x1, y1] = titik1;
-    const [x2, y2] = titik2;
-
-    // 4. Kalkulasi Delta (Selisih)
+    // 2. Kalkulasi Delta (Selisih)
     const dx = x2 - x1;
     const dy = y2 - y1;
 
-    // 5. Penanganan Kondisi Ekstrem (Edge Cases)
+    // 3. Penanganan Kondisi Ekstrem (Edge Cases)
     if (dx === 0) {
         // Jika dy juga 0 (titik yang sama), kembalikan NaN. Jika tidak, Infinity (garis vertikal)
         return dy === 0 ? NaN : Infinity;
     }
 
-    // 6. Eksekusi Rumus Utama
+    // 4. Eksekusi Rumus Utama
     return dy / dx;
 };
 
 /**
  * Mencari titik berat (centroid) dari segitiga yang dibentuk oleh 3 titik.
  * Mendukung koordinat 2D maupun 3D (X, Y, Z).
+ * Titik boleh berupa [x, y] atau {x, y}; hasil mengikuti format titik pertama.
  */
 const titikBerat = (...titik) => {
     // 1. Validasi Input: Pastikan ada 3 titik
@@ -1583,18 +1640,22 @@ const titikBerat = (...titik) => {
         throw new Error("MATEMATIKIN: Fungsi titikBerat membutuhkan tepat 3 titik koordinat.");
     }
 
-    // 2. Validasi Dimensi: Pastikan semua titik memiliki jumlah dimensi yang sama
-    const dimensi = titik[0].length;
-    if (!titik.every(t => t.length === dimensi)) {
+    // 2. Normalisasi format titik (array/objek) menjadi array koordinat
+    const koordinat = titik.map(_keArrayTitik);
+
+    // 3. Validasi Dimensi: Pastikan semua titik memiliki jumlah dimensi yang sama
+    const dimensi = koordinat[0].length;
+    if (!koordinat.every(t => t.length === dimensi)) {
         throw new Error("MATEMATIKIN: Semua titik harus memiliki dimensi yang sama (2D atau 3D).");
     }
 
-    // 3. Eksekusi Fungsional: Menjumlahkan setiap sumbu lalu membaginya dengan 3
-    // Kita menggunakan .reduce untuk menjumlahkan koordinat, lalu .map untuk membaginya
-    return titik[0].map((_, indeks) => {
-        const jumlahSumbu = titik.reduce((total, t) => total + t[indeks], 0);
+    // 4. Eksekusi Fungsional: Menjumlahkan setiap sumbu lalu membaginya dengan 3
+    const hasil = koordinat[0].map((_, indeks) => {
+        const jumlahSumbu = koordinat.reduce((total, t) => total + t[indeks], 0);
         return jumlahSumbu / 3;
     });
+
+    return _keFormatTitik(hasil, titik[0]);
 };
 
 /**
@@ -1604,6 +1665,7 @@ const titikBerat = (...titik) => {
 const kombinasi = (n, r) => {
     // 1. Validasi Matematis
     if (typeof n !== 'number' || typeof r !== 'number') return 0;
+    if (!Number.isInteger(n) || !Number.isInteger(r)) return 0;
     if (n < 0 || r < 0 || r > n) return 0;
 
     // Basis kasus
@@ -1631,6 +1693,7 @@ const C = kombinasi;
 const permutasi = (n, r) => {
     // Validasi Matematis
     if (typeof n !== 'number' || typeof r !== 'number') return 0;
+    if (!Number.isInteger(n) || !Number.isInteger(r)) return 0;
     if (n < 0 || r < 0 || r > n) return 0;
 
     // Eksekusi Iteratif (Lebih cepat dan aman dari faktorial rekursif)
@@ -1665,6 +1728,10 @@ const bulatkanDesimal = (angka, desimal = 2) => {
         throw new Error("MATEMATIKIN: Input harus berupa angka.");
     }
 
+    // Notasi ilmiah (misal 1e-7) merusak trik "e" di bawah, jadi ditangani terpisah
+    if (!Number.isFinite(angka) || String(angka).includes('e')) {
+        return Number.isFinite(angka) ? Number(angka.toFixed(desimal)) : angka;
+    }
     // Menggunakan trik manipulasi string eksponensial (e) 
     // untuk mencegah inakurasi floating-point pada angka berakhiran 5.
     return Number(Math.round(angka + "e" + desimal) + "e-" + desimal);
@@ -1765,57 +1832,76 @@ const varians = (arr) => {
 const simpanganBaku = (arr) => {
     if (!Array.isArray(arr) || arr.length < 2) return 0;
 
-    bulatkanDesimal(Math.sqrt(varians(arr)), 2);
+    const rata = arr.reduce((t, n) => t + n, 0) / arr.length;
+    const v = arr.reduce((t, n) => t + (n - rata) ** 2, 0) / arr.length;
+    return bulatkanDesimal(Math.sqrt(v), 2);
 };
 
 /**
- * Menghasilkan opsi pilihan ganda (A, B, C, D, E) dengan distraktor otomatis.
+ * Menghasilkan opsi pilihan ganda (A, B, C, D, E, dst.) dengan distraktor otomatis.
  * Output berupa array objek lengkap dengan status kebenaran (isBenar) untuk grading.
+ *
+ * Pengecoh dibuat simetris di sekitar jawaban benar (jawaban ± k × toleransi),
+ * selalu unik, dan jangkauannya melebar otomatis sehingga mendukung hingga 26 opsi.
+ *
+ * @param {number} jawabanBenar - Jawaban yang benar.
+ * @param {number} [toleransi=1] - Jarak antar pengecoh.
+ * @param {number} [jumlahOpsi=5] - Banyak opsi (maksimal 26).
+ * @param {Object} [opsi={}] - Pengaturan tambahan:
+ *   - tidakNegatif: true -> pengecoh tidak boleh negatif (hanya berlaku jika jawaban benar >= 0)
+ *   - desimal: n -> pengecoh dibulatkan ke n digit desimal
  */
-const buatOpsiGanda = (jawabanBenar, toleransi = 1, jumlahOpsi = 5) => {
+const buatOpsiGanda = (jawabanBenar, toleransi = 1, jumlahOpsi = 5, opsi = {}) => {
     // 1. Validasi Input
     if (typeof jawabanBenar !== 'number' || !Number.isFinite(jawabanBenar)) {
         throw new Error("MATEMATIKIN: Jawaban benar harus berupa angka agar distraktor dapat dihitung.");
     }
+    if (typeof toleransi !== 'number' || !Number.isFinite(toleransi) || toleransi === 0) {
+        throw new Error("MATEMATIKIN: Toleransi harus berupa angka terhingga yang tidak sama dengan 0.");
+    }
+    if (!Number.isInteger(jumlahOpsi) || jumlahOpsi < 1) {
+        throw new Error("MATEMATIKIN: Jumlah opsi harus berupa bilangan bulat minimal 1.");
+    }
 
-    // 2. Inisialisasi keranjang dengan jawaban benar sudah berada di dalamnya
-    const kumpulanOpsi = [jawabanBenar];
-    const batasLoop = 100; // Pengaman agar browser tidak hang jika gagal mencari angka unik
-    let iterasi = 0;
+    const dibutuhkan = Math.min(jumlahOpsi, 26) - 1; // banyaknya pengecoh
+    const jarak = Math.abs(toleransi);
+    const tidakNegatif = opsi.tidakNegatif === true && jawabanBenar >= 0;
+    const desimal = opsi.desimal;
 
-    // 3. Mesin Pembuat Pengecoh (Distraktor)
-    while (kumpulanOpsi.length < Math.min(jumlahOpsi, 26) && iterasi < batasLoop) {
-        // Mengundi arah selisih: bisa ke atas (+) atau ke bawah (-) 
-        // Rentang pengali: -3, -2, -1, 1, 2, 3 (0 dibuang)
-        let pengaliAcak = Math.floor(Math.random() * 7) - 3;
-        if (pengaliAcak === 0) pengaliAcak = 4; // Ganti 0 agar tidak menghasilkan jawaban ganda
-
-        // Buat angka pengecoh berdasarkan jarak toleransi
-        const pengecoh = jawabanBenar + (pengaliAcak * toleransi);
-
-        // Pastikan angka ini belum ada di dalam keranjang opsi
-        if (!kumpulanOpsi.includes(pengecoh)) {
-            kumpulanOpsi.push(pengecoh);
+    // 2. Kumpulkan kandidat pengecoh secara simetris (±1, ±2, ±3, ... kali toleransi).
+    // Rentang melebar otomatis sampai kandidat unik cukup. Kandidat dibuat sekitar dua kali
+    // lipat kebutuhan agar pemilihan acak tetap bervariasi.
+    const kandidat = new Set();
+    const targetKandidat = Math.max(dibutuhkan * 2, 6);
+    for (let k = 1; k <= 1000 && kandidat.size < targetKandidat; k++) {
+        for (const tanda of [-1, 1]) {
+            let nilai = _rapikan(jawabanBenar + tanda * k * jarak);
+            if (desimal !== undefined) nilai = bulatkanDesimal(nilai, desimal) + 0;
+            if (nilai === jawabanBenar) continue;      // jangan sampai sama dengan jawaban benar
+            if (tidakNegatif && nilai < 0) continue;   // buang pengecoh negatif jika diminta
+            kandidat.add(nilai);
         }
-        iterasi++;
     }
 
-    // 4. Tahap Pengacakan Posisi (Algoritma Fisher-Yates Murni)
-    for (let i = kumpulanOpsi.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [kumpulanOpsi[i], kumpulanOpsi[j]] = [kumpulanOpsi[j], kumpulanOpsi[i]];
+    if (kandidat.size < dibutuhkan) {
+        throw new Error("MATEMATIKIN: Tidak dapat membuat cukup pengecoh unik. Perbesar toleransi atau kurangi jumlah opsi.");
     }
 
-    // 5. Pemetaan Abjad (A, B, C, D, E, dst.) dan Format Akhir
+    // 3. Pilih pengecoh secara acak, gabungkan dengan jawaban benar, lalu acak posisinya
+    const pengecoh = acakArray([...kandidat]).slice(0, dibutuhkan);
+    const semuaOpsi = acakArray([
+        { nilai: jawabanBenar, isBenar: true },
+        ...pengecoh.map(nilai => ({ nilai, isBenar: false }))
+    ]);
+
+    // 4. Pemetaan Abjad (A, B, C, D, E, dst.) dan Format Akhir
     const abjad = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-    return kumpulanOpsi.map((nilai, indeks) => {
-        return {
-            opsi: abjad[indeks],
-            nilai: nilai, // Bisa dipadukan dengan formatRibuan() jika nilainya besar
-            isBenar: nilai === jawabanBenar
-        };
-    });
+    return semuaOpsi.map((item, indeks) => ({
+        opsi: abjad[indeks],
+        nilai: item.nilai, // Bisa dipadukan dengan formatRibuan() jika nilainya besar
+        isBenar: item.isBenar
+    }));
 };
 
 /**
@@ -1947,11 +2033,14 @@ const akarKuadrat = (a, b, c) => {
     
     // Jika D > 0, dua akar nyata berbeda
     const akarD = Math.sqrt(D);
-    const x1 = (-b + akarD) / (2 * a);
-    const x2 = (-b - akarD) / (2 * a);
-    
-    // Kembalikan akar dengan urutan dari yang terkecil ke terbesar
-    return [Math.min(x1, x2), Math.max(x1, x2)];
+
+    // Rumus stabil: menghindari pengurangan dua angka yang hampir sama (catastrophic cancellation)
+    const q = -0.5 * (b + (b < 0 ? -akarD : akarD));
+    const x1 = q / a;
+    const x2 = c / q;
+
+    // Kembalikan akar dengan urutan dari yang terkecil ke terbesar (+ 0 membuang -0)
+    return [Math.min(x1, x2) + 0, Math.max(x1, x2) + 0];
 };
 
 /**
@@ -1970,3 +2059,706 @@ const derajat = (radian) => {
     return (radian * 180) / PI;
 };
 
+// ==========================================================================
+// FUNGSI TAMBAHAN
+// Geometri titik, barisan & deret, statistika, pecahan, integral, logaritma,
+// dan terbilang.
+// ==========================================================================
+
+// --------------------------------------------------------------------------
+// PEMBANTU UMUM (INTERNAL)
+// --------------------------------------------------------------------------
+
+// Membersihkan "noise" floating-point (misal 2.0000000000000004 -> 2) dan mengubah -0 menjadi 0.
+// Bilangan bulat dibiarkan utuh.
+const _rapikan = (n) => {
+    if (!Number.isFinite(n)) return n;
+    if (Number.isInteger(n)) return n + 0;
+    if (Math.abs(n) >= 1e5) return Number(n.toPrecision(15)) + 0;
+    return Math.round(n * 1e10) / 1e10 + 0;
+};
+
+// Memastikan semua parameter berupa angka terhingga
+const _pastikanAngka = (...nilai) => {
+    if (!nilai.every(n => typeof n === 'number' && Number.isFinite(n))) {
+        throw new Error("MATEMATIKIN: Semua koordinat/parameter harus berupa angka terhingga.");
+    }
+};
+
+// --------------------------------------------------------------------------
+// TRANSFORMASI GEOMETRI TITIK
+// Semua titik boleh berupa [x, y] atau {x, y}. Hasil mengikuti format titik input.
+// Koordinat ke-3 (z) jika ada dibiarkan tidak berubah.
+// --------------------------------------------------------------------------
+
+const _transformasiTitik = (titik, fungsi) => {
+    const [x, y, ...sisa] = _keArrayTitik(titik);
+    _pastikanAngka(x, y);
+    const [xBaru, yBaru] = fungsi(x, y);
+    return _keFormatTitik([_rapikan(xBaru), _rapikan(yBaru), ...sisa], titik);
+};
+
+/**
+ * Translasi (pergeseran) titik.
+ * Contoh: translasi([1, 2], 3, -1) -> [4, 1]
+ *         translasi({x: 1, y: 2}, [3, -1]) -> {x: 4, y: 1}
+ */
+const translasi = (titik, dx, dy) => {
+    if (_adalahTitik(dx)) [dx, dy] = _keArrayTitik(dx); // vektor translasi sebagai satu parameter
+    _pastikanAngka(dx, dy);
+    return _transformasiTitik(titik, (x, y) => [x + dx, y + dy]);
+};
+
+/**
+ * Dilatasi (perkalian) titik dengan faktor skala k terhadap pusat tertentu (default titik asal).
+ * Contoh: dilatasi([2, 3], 2) -> [4, 6]
+ *         dilatasi([2, 3], 3, [1, 1]) -> [4, 7]
+ */
+const dilatasi = (titik, k, pusat = [0, 0]) => {
+    const [px, py] = _keArrayTitik(pusat);
+    _pastikanAngka(k, px, py);
+    return _transformasiTitik(titik, (x, y) => [px + k * (x - px), py + k * (y - py)]);
+};
+
+/**
+ * Rotasi titik sebesar sudut (derajat) terhadap pusat tertentu (default titik asal).
+ * Sudut positif = berlawanan arah jarum jam.
+ * Contoh: rotasi([1, 0], 90) -> [0, 1]
+ *         rotasi({x: 3, y: 1}, 180, {x: 1, y: 1}) -> {x: -1, y: 1}
+ */
+const rotasi = (titik, sudut, pusat = [0, 0]) => {
+    const [px, py] = _keArrayTitik(pusat);
+    _pastikanAngka(sudut, px, py);
+    const cosSudut = cos(sudut);
+    const sinSudut = sin(sudut);
+    return _transformasiTitik(titik, (x, y) => {
+        const dx = x - px;
+        const dy = y - py;
+        return [px + dx * cosSudut - dy * sinSudut, py + dx * sinSudut + dy * cosSudut];
+    });
+};
+
+/**
+ * Refleksi (pencerminan) titik. Parameter 'cermin' dapat berupa:
+ *  - String : 'sumbu-x', 'sumbu-y', 'y=x', 'y=-x', 'asal'
+ *  - Titik  : [px, py] atau {x: px, y: py} -> pencerminan terhadap sebuah titik
+ *  - Garis  : {x: k} (garis x = k), {y: k} (garis y = k), atau {m, c} (garis y = mx + c)
+ * Contoh: refleksi([3, 2], 'sumbu-x') -> [3, -2]
+ *         refleksi([3, 2], {x: 5}) -> [7, 2]
+ *         refleksi([3, 1], {m: 1, c: 0}) -> [1, 3]
+ */
+const refleksi = (titik, cermin) => {
+    // 1. Cermin berupa teks
+    if (typeof cermin === 'string') {
+        const aturan = {
+            'sumbu-x': (x, y) => [x, -y],
+            'sumbux': (x, y) => [x, -y],
+            'y=0': (x, y) => [x, -y],
+            'sumbu-y': (x, y) => [-x, y],
+            'sumbuy': (x, y) => [-x, y],
+            'x=0': (x, y) => [-x, y],
+            'y=x': (x, y) => [y, x],
+            'y=-x': (x, y) => [-y, -x],
+            'asal': (x, y) => [-x, -y],
+            'titikasal': (x, y) => [-x, -y]
+        };
+        const fungsi = aturan[cermin.toLowerCase().replace(/\s+/g, '')];
+        if (!fungsi) {
+            throw new Error("MATEMATIKIN: Cermin tidak dikenali. Gunakan 'sumbu-x', 'sumbu-y', 'y=x', 'y=-x', 'asal', titik, atau garis {x}, {y}, {m, c}.");
+        }
+        return _transformasiTitik(titik, fungsi);
+    }
+
+    // 2. Cermin berupa titik (pencerminan terhadap titik)
+    if (_adalahTitik(cermin)) {
+        const [px, py] = _keArrayTitik(cermin);
+        _pastikanAngka(px, py);
+        return _transformasiTitik(titik, (x, y) => [2 * px - x, 2 * py - y]);
+    }
+
+    // 3. Cermin berupa garis
+    if (cermin !== null && typeof cermin === 'object') {
+        const { x: kx, y: ky, m, c = 0 } = cermin;
+
+        if (m === undefined && typeof kx === 'number' && ky === undefined) { // garis x = k
+            _pastikanAngka(kx);
+            return _transformasiTitik(titik, (x, y) => [2 * kx - x, y]);
+        }
+        if (m === undefined && typeof ky === 'number' && kx === undefined) { // garis y = k
+            _pastikanAngka(ky);
+            return _transformasiTitik(titik, (x, y) => [x, 2 * ky - y]);
+        }
+        if (typeof m === 'number') { // garis y = mx + c
+            _pastikanAngka(m, c);
+            return _transformasiTitik(titik, (x, y) => {
+                const d = (x + (y - c) * m) / (1 + m * m); // proyeksi titik pada garis (sumbu x)
+                return [2 * d - x, 2 * (d * m + c) - y];
+            });
+        }
+    }
+
+    throw new Error("MATEMATIKIN: Cermin tidak valid. Gunakan teks, titik, atau garis {x}, {y}, {m, c}.");
+};
+
+// --------------------------------------------------------------------------
+// GEOMETRI ANALITIK
+// --------------------------------------------------------------------------
+
+// Koefisien garis ax + by + c = 0 yang melalui dua titik (belum disederhanakan)
+const _koefisienGaris = (titik1, titik2) => {
+    const [x1, y1] = _keArrayTitik(titik1);
+    const [x2, y2] = _keArrayTitik(titik2);
+    _pastikanAngka(x1, y1, x2, y2);
+    if (x1 === x2 && y1 === y2) {
+        throw new Error("MATEMATIKIN: Dua titik harus berbeda untuk membentuk sebuah garis.");
+    }
+    return { a: y2 - y1, b: x1 - x2, c: x2 * y1 - x1 * y2 };
+};
+
+// Merangkai satu suku aljabar: _sukuAljabar(-3, 'x', false) -> " - 3x"
+const _sukuAljabar = (n, variabel, pertama) => {
+    if (n === 0) return '';
+    const mutlak = Math.abs(n);
+    const isi = `${(variabel && mutlak === 1) ? '' : mutlak}${variabel}`;
+    if (pertama) return n < 0 ? `-${isi}` : isi;
+    return ` ${n < 0 ? '-' : '+'} ${isi}`;
+};
+
+// Pembilang/penyebut -> teks LaTeX (pecahan jika bulat, desimal jika tidak)
+const _nilaiLatex = (pembilang, penyebut) => {
+    if (Number.isInteger(pembilang) && Number.isInteger(penyebut)) return pecahan(pembilang, penyebut);
+    return String(_rapikan(pembilang / penyebut));
+};
+
+/**
+ * Menyusun persamaan garis yang melalui dua titik, dalam format LaTeX.
+ * Titik boleh berupa [x, y] atau {x, y}. Bentuk: 'umum' (ax + by + c = 0, default)
+ * atau 'gradien' (y = mx + c). Garis tegak menghasilkan x = k.
+ * Contoh: persamaanGaris([0, 1], [2, 4]) -> "3x - 2y + 2 = 0"
+ *         persamaanGaris([0, 1], [2, 4], 'gradien') -> "y = \dfrac{3}{2}x + 1"
+ */
+const persamaanGaris = (titik1, titik2, bentuk = 'umum') => {
+    if (typeof titik2 === 'string') { // persamaanGaris([t1, t2], 'gradien')
+        bentuk = titik2;
+        titik2 = undefined;
+    }
+    [titik1, titik2] = _ambilDuaTitik(titik1, titik2);
+    let { a, b, c } = _koefisienGaris(titik1, titik2);
+
+    // Sederhanakan: bagi dengan FPB (jika semua bulat) dan buat tanda suku pertama positif
+    if ([a, b, c].every(Number.isInteger)) {
+        const pembagi = fpb(a, b, c);
+        a /= pembagi; b /= pembagi; c /= pembagi;
+    }
+    if (a < 0 || (a === 0 && b < 0)) { a = -a; b = -b; c = -c; }
+    a = _rapikan(a); b = _rapikan(b); c = _rapikan(c);
+
+    if (bentuk === 'umum') {
+        return `${_sukuAljabar(a, 'x', true)}${_sukuAljabar(b, 'y', a === 0)}${_sukuAljabar(c, '', false)} = 0`;
+    }
+
+    if (bentuk === 'gradien') {
+        if (b === 0) return `x = ${_nilaiLatex(-c, a)}`; // garis tegak
+
+        const m = -a / b;  // gradien
+        const k = -c / b;  // konstanta
+        let suku = '';
+        if (m === 1) suku = 'x';
+        else if (m === -1) suku = '-x';
+        else if (m !== 0) suku = `${_nilaiLatex(-a, b)}x`;
+
+        if (k !== 0) {
+            const besar = _nilaiLatex(Math.abs(c), Math.abs(b));
+            if (suku === '') suku = k < 0 ? `-${besar}` : besar;
+            else suku += k < 0 ? ` - ${besar}` : ` + ${besar}`;
+        }
+        return `y = ${suku === '' ? '0' : suku}`;
+    }
+
+    throw new Error("MATEMATIKIN: Bentuk persamaan harus 'umum' atau 'gradien'.");
+};
+
+/**
+ * Menghitung jarak titik ke sebuah garis (2D).
+ * Garis dapat berupa pasangan dua titik [[x1, y1], [x2, y2]] (atau objek {x, y}),
+ * atau koefisien {a, b, c} untuk garis ax + by + c = 0.
+ * Contoh: jarakTitikKeGaris([0, 0], {a: 3, b: 4, c: -10}) -> 2
+ */
+const jarakTitikKeGaris = (titik, garis) => {
+    const [x0, y0] = _keArrayTitik(titik);
+    let a, b, c;
+
+    if (garis !== null && typeof garis === 'object' && !Array.isArray(garis) && 'a' in garis) {
+        ({ a, b, c = 0 } = garis);
+    } else {
+        const [titik1, titik2] = _keArrayGaris(garis);
+        ({ a, b, c } = _koefisienGaris(titik1, titik2));
+    }
+
+    _pastikanAngka(x0, y0, a, b, c);
+    const penyebut = Math.hypot(a, b);
+    if (penyebut === 0) {
+        throw new Error("MATEMATIKIN: Koefisien a dan b tidak boleh keduanya nol.");
+    }
+    return _rapikan(Math.abs(a * x0 + b * y0 + c) / penyebut);
+};
+
+/**
+ * Menghitung luas poligon dengan rumus Shoelace (Gauss).
+ * Titik diberikan berurutan (searah atau berlawanan jarum jam), tanpa garis yang berpotongan.
+ * Menerima titik berjejer luasPoligon(t1, t2, t3, ...) atau satu array berisi titik.
+ * Titik boleh berupa [x, y] atau {x, y}.
+ * Contoh: luasPoligon([0, 0], [4, 0], [4, 3], [0, 3]) -> 12
+ */
+const luasPoligon = (...titik) => {
+    if (titik.length === 1 && Array.isArray(titik[0]) && titik[0].length > 0 && titik[0].every(_adalahTitik)) {
+        titik = titik[0];
+    }
+    if (titik.length < 3) {
+        throw new Error("MATEMATIKIN: Poligon membutuhkan minimal 3 titik.");
+    }
+
+    const koordinat = titik.map(_keArrayTitik);
+    _pastikanAngka(...koordinat.flatMap(t => [t[0], t[1]]));
+
+    let jumlahSilang = 0;
+    for (let i = 0; i < koordinat.length; i++) {
+        const [xi, yi] = koordinat[i];
+        const [xj, yj] = koordinat[(i + 1) % koordinat.length];
+        jumlahSilang += xi * yj - xj * yi;
+    }
+    return _rapikan(Math.abs(jumlahSilang) / 2);
+};
+
+/**
+ * Menghitung luas segitiga dari 3 titik koordinat (kolinier menghasilkan 0).
+ * Titik boleh berupa [x, y] atau {x, y}.
+ * Contoh: luasSegitiga([0, 0], [4, 0], [0, 3]) -> 6
+ */
+const luasSegitiga = (titik1, titik2, titik3) => luasPoligon(titik1, titik2, titik3);
+
+// --------------------------------------------------------------------------
+// BARISAN DAN DERET
+// --------------------------------------------------------------------------
+
+const _pastikanSukuKe = (n) => {
+    if (!Number.isInteger(n) || n < 1) {
+        throw new Error("MATEMATIKIN: Suku ke-n harus berupa bilangan bulat positif (n >= 1).");
+    }
+};
+
+/** Suku ke-n barisan aritmetika: Un = a + (n - 1)b. Contoh: sukuAritmetika(3, 4, 10) -> 39 */
+const sukuAritmetika = (a, b, n) => {
+    _pastikanAngka(a, b);
+    _pastikanSukuKe(n);
+    return _rapikan(a + (n - 1) * b);
+};
+
+/** Jumlah n suku pertama deret aritmetika: Sn = n/2 (2a + (n - 1)b). Contoh: jumlahAritmetika(3, 4, 10) -> 210 */
+const jumlahAritmetika = (a, b, n) => {
+    _pastikanAngka(a, b);
+    _pastikanSukuKe(n);
+    return _rapikan(n * (2 * a + (n - 1) * b) / 2);
+};
+
+/** Suku ke-n barisan geometri: Un = a * r^(n-1). Contoh: sukuGeometri(2, 3, 5) -> 162 */
+const sukuGeometri = (a, r, n) => {
+    _pastikanAngka(a, r);
+    _pastikanSukuKe(n);
+    return _rapikan(a * r ** (n - 1));
+};
+
+/** Jumlah n suku pertama deret geometri: Sn = a(r^n - 1)/(r - 1). Contoh: jumlahGeometri(2, 3, 5) -> 242 */
+const jumlahGeometri = (a, r, n) => {
+    _pastikanAngka(a, r);
+    _pastikanSukuKe(n);
+    if (r === 1) return _rapikan(a * n);
+    return _rapikan(a * (r ** n - 1) / (r - 1));
+};
+
+/** Jumlah deret geometri tak hingga: S = a/(1 - r), hanya konvergen jika |r| < 1. Contoh: jumlahGeometriTakHingga(8, 0.5) -> 16 */
+const jumlahGeometriTakHingga = (a, r) => {
+    _pastikanAngka(a, r);
+    if (!(Math.abs(r) < 1)) {
+        throw new Error("MATEMATIKIN: Deret geometri tak hingga hanya konvergen jika |r| < 1.");
+    }
+    return _rapikan(a / (1 - r));
+};
+
+// --------------------------------------------------------------------------
+// STATISTIKA TAMBAHAN
+// Hasil dibulatkan 2 desimal, sama seperti mean(), median(), dan varians().
+// --------------------------------------------------------------------------
+
+const _validasiData = (arr, minimal = 1) => {
+    if (!Array.isArray(arr) || arr.length < minimal ||
+        !arr.every(n => typeof n === 'number' && Number.isFinite(n))) {
+        throw new Error(`MATEMATIKIN: Data harus berupa array angka terhingga (minimal ${minimal} data).`);
+    }
+};
+
+const _medianUrut = (urut) => {
+    const tengah = Math.floor(urut.length / 2);
+    return urut.length % 2 === 0 ? (urut[tengah - 1] + urut[tengah]) / 2 : urut[tengah];
+};
+
+const _rataMentah = (arr) => arr.reduce((total, n) => total + n, 0) / arr.length;
+
+/**
+ * Menghitung kuartil data (Q1, Q2, Q3) dengan metode median dua belahan data:
+ * data dibagi dua di median; jika banyak data ganjil, median tidak ikut dihitung.
+ * Tanpa parameter q mengembalikan {q1, q2, q3}; dengan q (1, 2, atau 3) mengembalikan angkanya.
+ * Contoh: kuartil([1, 2, 3, 4, 5, 6, 7], 1) -> 2
+ */
+const kuartil = (arr, q) => {
+    _validasiData(arr, 2);
+    const urut = [...arr].sort((a, b) => a - b);
+    const tengah = Math.floor(urut.length / 2);
+    const bawah = urut.slice(0, tengah);
+    const atas = urut.slice(urut.length % 2 === 0 ? tengah : tengah + 1);
+
+    const hasil = {
+        q1: bulatkanDesimal(_medianUrut(bawah), 2),
+        q2: bulatkanDesimal(_medianUrut(urut), 2),
+        q3: bulatkanDesimal(_medianUrut(atas), 2)
+    };
+
+    if (q === undefined) return hasil;
+    if (![1, 2, 3].includes(q)) {
+        throw new Error("MATEMATIKIN: Parameter q harus bernilai 1, 2, atau 3.");
+    }
+    return hasil[`q${q}`];
+};
+
+/** Jangkauan (range) data = nilai terbesar - nilai terkecil. */
+const jangkauan = (arr) => {
+    _validasiData(arr, 1);
+    const urut = [...arr].sort((a, b) => a - b);
+    return _rapikan(urut[urut.length - 1] - urut[0]);
+};
+
+/** Jangkauan interkuartil (IQR) = Q3 - Q1. */
+const jangkauanInterkuartil = (arr) => {
+    const { q1, q3 } = kuartil(arr);
+    return _rapikan(q3 - q1);
+};
+
+/** Simpangan kuartil (Qd) = 1/2 (Q3 - Q1). */
+const simpanganKuartil = (arr) => jangkauanInterkuartil(arr) / 2;
+
+/** Simpangan rata-rata = rata-rata dari |x - mean|. */
+const simpanganRataRata = (arr) => {
+    _validasiData(arr, 1);
+    const rata = _rataMentah(arr);
+    return bulatkanDesimal(_rataMentah(arr.map(n => Math.abs(n - rata))), 2);
+};
+
+/** Varians sampel (pembagi n - 1). Berbeda dengan varians() yang memakai populasi (pembagi n). */
+const variansSampel = (arr) => {
+    _validasiData(arr, 2);
+    const rata = _rataMentah(arr);
+    const jumlahKuadratSelisih = arr.reduce((total, n) => total + (n - rata) ** 2, 0);
+    return bulatkanDesimal(jumlahKuadratSelisih / (arr.length - 1), 2);
+};
+
+/** Simpangan baku sampel (pembagi n - 1). */
+const simpanganBakuSampel = (arr) => {
+    _validasiData(arr, 2);
+    const rata = _rataMentah(arr);
+    const jumlahKuadratSelisih = arr.reduce((total, n) => total + (n - rata) ** 2, 0);
+    return bulatkanDesimal(Math.sqrt(jumlahKuadratSelisih / (arr.length - 1)), 2);
+};
+
+// --------------------------------------------------------------------------
+// OPERASI PECAHAN
+// Pecahan ditulis sebagai [pembilang, penyebut]; bilangan bulat n dibaca sebagai n/1.
+// --------------------------------------------------------------------------
+
+const _keArrayPecahan = (p) => {
+    let pembilang, penyebut;
+    if (Number.isInteger(p)) {
+        [pembilang, penyebut] = [p, 1];
+    } else if (Array.isArray(p) && p.length === 2) {
+        [pembilang, penyebut] = p;
+    } else {
+        throw new Error("MATEMATIKIN: Pecahan harus berupa bilangan bulat atau array [pembilang, penyebut].");
+    }
+    if (!Number.isInteger(pembilang) || !Number.isInteger(penyebut)) {
+        throw new Error("MATEMATIKIN: Pembilang dan penyebut harus berupa bilangan bulat.");
+    }
+    if (penyebut === 0) {
+        throw new Error("MATEMATIKIN: Penyebut pecahan tidak boleh bernilai nol.");
+    }
+    return [pembilang, penyebut];
+};
+
+// Menyederhanakan pecahan dan memastikan penyebut selalu positif
+const _sederhanakanPecahan = (pembilang, penyebut) => {
+    if (pembilang === 0) return [0, 1];
+    const pembagi = _fpbDuaAngka(pembilang, penyebut);
+    let [a, b] = [pembilang / pembagi, penyebut / pembagi];
+    if (b < 0) { a = -a; b = -b; }
+    return [a, b];
+};
+
+/**
+ * Menghitung operasi dua pecahan. Operasi: 'tambah' (default), 'kurang', 'kali', 'bagi'.
+ * Mengembalikan pecahan paling sederhana sebagai [pembilang, penyebut].
+ * Contoh: hitungPecahan([1, 2], [1, 3]) -> [5, 6]
+ */
+const hitungPecahan = (pecahan1, pecahan2, operasi = 'tambah') => {
+    const [n1, d1] = _keArrayPecahan(pecahan1);
+    const [n2, d2] = _keArrayPecahan(pecahan2);
+
+    switch (operasi) {
+        case 'tambah':
+        case 'kurang': {
+            const penyebut = _kpkDuaAngka(d1, d2);
+            const tanda = operasi === 'tambah' ? 1 : -1;
+            return _sederhanakanPecahan(n1 * (penyebut / d1) + tanda * n2 * (penyebut / d2), penyebut);
+        }
+        case 'kali':
+            return _sederhanakanPecahan(n1 * n2, d1 * d2);
+        case 'bagi':
+            if (n2 === 0) throw new Error("MATEMATIKIN: Tidak dapat membagi dengan pecahan bernilai nol.");
+            return _sederhanakanPecahan(n1 * d2, d1 * n2);
+        default:
+            throw new Error("MATEMATIKIN: Operasi harus 'tambah', 'kurang', 'kali', atau 'bagi'.");
+    }
+};
+
+/**
+ * Sama seperti hitungPecahan, tetapi hasilnya berupa teks LaTeX (memakai pecahan()).
+ * Contoh: operasiPecahan([1, 2], [1, 3]) -> "\dfrac{5}{6}"
+ */
+const operasiPecahan = (pecahan1, pecahan2, operasi = 'tambah') => {
+    const [pembilang, penyebut] = hitungPecahan(pecahan1, pecahan2, operasi);
+    return pecahan(pembilang, penyebut);
+};
+
+/**
+ * Mengubah bilangan desimal menjadi pecahan paling sederhana [pembilang, penyebut]
+ * (algoritma pecahan berlanjut). Desimal berulang seperti 0.3333333333333333 menjadi [1, 3].
+ * Opsi: { toleransi: 1e-14 (relatif), maksPenyebut: 1e6, latex: false }. Dengan latex: true hasilnya teks LaTeX.
+ * Desimal berhingga (misal 0.333333) dikembalikan tepat sebagai [333333, 1000000].
+ * Contoh: desimalKePecahan(0.75) -> [3, 4]
+ */
+const desimalKePecahan = (desimal, opsi = {}) => {
+    if (typeof desimal !== 'number' || !Number.isFinite(desimal)) {
+        throw new Error("MATEMATIKIN: Input harus berupa angka terhingga.");
+    }
+    const maksPenyebut = opsi.maksPenyebut === undefined ? 1e6 : opsi.maksPenyebut;
+
+    const tanda = desimal < 0 ? -1 : 1;
+    const x = Math.abs(desimal);
+
+    // Toleransi harus jauh lebih kecil dari selisih dua pecahan berpenyebut <= maksPenyebut,
+    // tetapi tetap lebih besar dari noise floating-point (sekitar 1e-16).
+    const toleransi = (opsi.toleransi === undefined ? 1e-14 : opsi.toleransi) * Math.max(1, x);
+
+    let hasil;
+    if (Number.isInteger(x)) {
+        hasil = [tanda * x + 0, 1];
+    } else {
+        let pKemarin = 1, qKemarin = 0;
+        let bulatan = Math.floor(x);
+        let p = bulatan, q = 1;
+        let sisa = x - bulatan;
+
+        while (sisa > 1e-15 && Math.abs(x - p / q) > toleransi) {
+            const kebalikan = 1 / sisa;
+            bulatan = Math.floor(kebalikan);
+            sisa = kebalikan - bulatan;
+            const pBaru = bulatan * p + pKemarin;
+            const qBaru = bulatan * q + qKemarin;
+            if (qBaru > maksPenyebut) break;
+            [pKemarin, qKemarin, p, q] = [p, q, pBaru, qBaru];
+        }
+        hasil = [tanda * p + 0, q];
+    }
+
+    return opsi.latex === true ? pecahan(hasil[0], hasil[1]) : hasil;
+};
+
+// --------------------------------------------------------------------------
+// KALKULUS: INTEGRAL (pasangan dfung)
+// --------------------------------------------------------------------------
+
+/**
+ * Menghitung integral tentu f(x) dari a sampai b dengan metode Simpson komposit.
+ * Opsi: { n: 1000 } = banyak subinterval (dibulatkan ke genap). Hasil dibulatkan 12 angka penting.
+ * Mengembalikan NaN jika fungsi tidak terdefinisi pada rentang tersebut.
+ * Contoh: integral(x => x * x, 0, 3) -> 9
+ *         integral(Math.sin, 0, Math.PI) -> 2
+ */
+const integral = (f, a, b, opsi = {}) => {
+    if (typeof f !== 'function') {
+        throw new Error("MATEMATIKIN [integral]: Parameter pertama harus berupa fungsi (Function).");
+    }
+    _pastikanAngka(a, b);
+    if (a === b) return 0;
+
+    let n = opsi.n === undefined ? 1000 : opsi.n;
+    if (!Number.isInteger(n) || n < 2) {
+        throw new Error("MATEMATIKIN [integral]: opsi.n harus berupa bilangan bulat minimal 2.");
+    }
+    if (n % 2 !== 0) n++;
+
+    const h = (b - a) / n;
+    let total;
+    try {
+        let jumlahGanjil = 0;
+        let jumlahGenap = 0;
+        for (let i = 1; i < n; i++) {
+            const nilai = f(a + i * h);
+            if (i % 2 === 0) jumlahGenap += nilai;
+            else jumlahGanjil += nilai;
+        }
+        total = (h / 3) * (f(a) + f(b) + 4 * jumlahGanjil + 2 * jumlahGenap);
+    } catch (error) {
+        throw new Error(`MATEMATIKIN [integral]: Terjadi kesalahan saat mengevaluasi fungsi. Detail: ${error.message}`);
+    }
+
+    if (!Number.isFinite(total)) return NaN;
+    return Number(total.toPrecision(12)) + 0;
+};
+
+// --------------------------------------------------------------------------
+// LOGARITMA
+// --------------------------------------------------------------------------
+
+/**
+ * Menghitung logaritma dengan basis tertentu: logaritma(basis, numerus), misalnya 2log 8 ditulis logaritma(2, 8).
+ * Hasil dirapikan agar bebas noise floating-point.
+ * Contoh: logaritma(2, 8) -> 3
+ *         logaritma(3, 81) -> 4
+ *         logaritma(10, 0.01) -> -2
+ */
+const logaritma = (basis, numerus) => {
+    if (typeof basis !== 'number' || typeof numerus !== 'number' ||
+        !Number.isFinite(basis) || !Number.isFinite(numerus)) {
+        throw new Error("MATEMATIKIN: Basis dan numerus harus berupa angka terhingga.");
+    }
+    if (basis <= 0 || basis === 1) {
+        throw new Error("MATEMATIKIN: Basis logaritma harus positif dan tidak sama dengan 1.");
+    }
+    if (numerus <= 0) {
+        throw new Error("MATEMATIKIN: Numerus logaritma harus lebih besar dari 0.");
+    }
+
+    let hasil;
+    if (basis === 10) hasil = Math.log10(numerus);
+    else if (basis === 2) hasil = Math.log2(numerus);
+    else hasil = Math.log(numerus) / Math.log(basis);
+
+    return _rapikan(hasil);
+};
+
+// --------------------------------------------------------------------------
+// TERBILANG (angka -> teks bahasa Indonesia)
+// --------------------------------------------------------------------------
+
+const _kataSatuan = ['nol', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
+
+// Mengeja angka 1 sampai 999
+const _terbilangTigaDigit = (n) => {
+    const kata = [];
+    const ratus = Math.floor(n / 100);
+    const sisa = n % 100;
+
+    if (ratus === 1) kata.push('seratus');
+    else if (ratus > 1) kata.push(`${_kataSatuan[ratus]} ratus`);
+
+    if (sisa > 0) {
+        if (sisa < 12) {
+            kata.push(_kataSatuan[sisa]);
+        } else if (sisa < 20) {
+            kata.push(`${_kataSatuan[sisa - 10]} belas`);
+        } else {
+            kata.push(`${_kataSatuan[Math.floor(sisa / 10)]} puluh`);
+            if (sisa % 10 > 0) kata.push(_kataSatuan[sisa % 10]);
+        }
+    }
+    return kata.join(' ');
+};
+
+// Mengeja bilangan bulat tak negatif (sampai batas bilangan bulat aman JavaScript)
+const _terbilangBulat = (n) => {
+    if (n === 0) return 'nol';
+
+    const skala = ['', 'ribu', 'juta', 'miliar', 'triliun', 'kuadriliun'];
+    const kelompok = [];
+    for (let sisa = n; sisa > 0; sisa = Math.floor(sisa / 1000)) {
+        kelompok.push(sisa % 1000);
+    }
+
+    const bagian = [];
+    for (let i = kelompok.length - 1; i >= 0; i--) {
+        if (kelompok[i] === 0) continue;
+        if (i === 1 && kelompok[i] === 1) bagian.push('seribu');
+        else bagian.push(skala[i] ? `${_terbilangTigaDigit(kelompok[i])} ${skala[i]}` : _terbilangTigaDigit(kelompok[i]));
+    }
+    return bagian.join(' ');
+};
+
+/**
+ * Mengeja angka dalam bahasa Indonesia. Mendukung bilangan negatif dan desimal
+ * (angka di belakang koma dibaca satu per satu), hingga batas bilangan bulat aman JavaScript.
+ * Contoh: terbilang(1250) -> "seribu dua ratus lima puluh"
+ *         terbilang(2024) -> "dua ribu dua puluh empat"
+ *         terbilang(-3.14) -> "minus tiga koma satu empat"
+ */
+const terbilang = (n) => {
+    if (typeof n !== 'number' || !Number.isFinite(n)) {
+        throw new Error("MATEMATIKIN: Input harus berupa angka terhingga.");
+    }
+
+    const teks = String(Math.abs(n));
+    if (teks.includes('e')) {
+        throw new Error("MATEMATIKIN: Angka terlalu besar atau terlalu kecil untuk dieja.");
+    }
+
+    const [bagianBulat, bagianDesimal] = teks.split('.');
+    if (Number(bagianBulat) > Number.MAX_SAFE_INTEGER) {
+        throw new Error("MATEMATIKIN: Angka melebihi batas bilangan bulat aman untuk dieja.");
+    }
+
+    let hasil = _terbilangBulat(Number(bagianBulat));
+    if (bagianDesimal) {
+        hasil += ` koma ${[...bagianDesimal].map(digit => _kataSatuan[Number(digit)]).join(' ')}`;
+    }
+    return n < 0 ? `minus ${hasil}` : hasil;
+};
+
+// ==========================================================================
+// EKSPOR
+// - Node.js / bundler : const { panjangGaris, sin } = require('./matematikin.js');
+// - Browser           : semua fungsi tetap global, dan juga tersedia lewat objek Matematikin
+//                       (misal Matematikin.panjangGaris).
+// Fungsi pembantu berawalan garis bawah (_) bersifat internal dan tidak diekspor.
+// ==========================================================================
+(function (api) {
+    if (typeof module !== 'undefined' && module.exports) module.exports = api;
+    if (typeof window !== 'undefined') window.Matematikin = api;
+})({
+    PI, E, PHI, cekBulat, cekBilKuadrat, faktorPrimaTerkecil,
+    cekPrima, faktorisasiPrima, primaBerikutnya, primaKembarBerikutnya, primaKuadrupletBerikutnya, faktorial,
+    daftarFaktorPrima, fpb, kpk, faktorKuadratTerbesar, diskriminan, bilBulatAcak,
+    determinan, matriksMinor, matriksKofaktor, transpose, adjoin, kaliMatriks,
+    invers, bentukMatriks, jumlah, jumlahKuadrat, panjangVektor, dotVektor,
+    crossVektor, proyeksiVektor, proyeksiSkalar, sudutVektor, vektorSatuan, aritmetikaVektor,
+    sederhanakanAkar, acakAntara, acakTanda, pecahan, koefisien, formatKonstanta,
+    formatSuku, deretTanpaNol, kurungNegatif, acakMinus, deretBilBul, acakArray,
+    pilihAcak, pilihSebagian, acakDerangement, sin, cos, tan,
+    csc, sec, ctg, arcsin, arccos, arctan,
+    buattabelsoal, arrayBukit, arrayLembah, formatRibuan, panjangGaris, titikPotong,
+    titikBagiGaris, titikTengah, pusatLingkaran3Titik, jariLingkaran3Titik, gradien, titikBerat,
+    kombinasi, C, permutasi, P, jabarFaktorial, bulatkanDesimal,
+    mean, median, modus, varians, simpanganBaku, buatOpsiGanda,
+    formatRupiah, formatSatuan, dfung, mod, akarKuadrat, rad,
+    derajat, translasi, dilatasi, rotasi, refleksi, persamaanGaris,
+    jarakTitikKeGaris, luasPoligon, luasSegitiga, sukuAritmetika, jumlahAritmetika, sukuGeometri,
+    jumlahGeometri, jumlahGeometriTakHingga, kuartil, jangkauan, jangkauanInterkuartil, simpanganKuartil,
+    simpanganRataRata, variansSampel, simpanganBakuSampel, hitungPecahan, operasiPecahan, desimalKePecahan,
+    integral, logaritma, terbilang
+});
