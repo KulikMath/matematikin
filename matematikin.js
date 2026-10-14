@@ -1966,11 +1966,8 @@ const dfung = (f, x, opsi = {}) => {
         throw new Error("MATEMATIKIN [dfung]: Titik evaluasi (x) harus berupa bilangan terhingga (Finite Number).");
     }
 
-    // 2. Menentukan Ukuran Langkah (Step Size / h)
-    // Jika tidak diberikan oleh pengguna, kita hitung h secara dinamis berdasarkan nilai x.
-    // Tujuannya untuk mencegah bencana "Catastrophic Cancellation" pada aritmatika Floating-Point.
-    // Konstanta 1e-4 adalah ukuran ideal untuk mesin 64-bit yang memakai algoritma 5-point stencil.
-    const h = opsi.h || (1e-4 * Math.max(1, Math.abs(x)));
+    // 2. Gunakan pangkat 2 (1/8192 = 2^-13 ≈ 1.22e-4) agar eksak dalam biner IEEE-754
+    const h = opsi.h || ((1 / 8192) * Math.max(1, Math.abs(x)));
 
     try {
         // 3. Evaluasi fungsi pada empat titik berdekatan secara simetris
@@ -1979,26 +1976,25 @@ const dfung = (f, x, opsi = {}) => {
         const f_plus1h = f(x + h);
         const f_plus2h = f(x + 2 * h);
 
-        // 4. Deteksi Anomali Asimtot (Pembagian dengan nol, akar negatif, dsb)
+        // 4. Deteksi Anomali Asimtot
         if (
             !Number.isFinite(f_min2h) ||
             !Number.isFinite(f_min1h) ||
             !Number.isFinite(f_plus1h) ||
             !Number.isFinite(f_plus2h)
         ) {
-            return NaN; // Mengembalikan NaN jika fungsi tidak terdefinisi di sekitar titik x
+            return NaN;
         }
 
         // 5. Eksekusi Rumus Utama (5-Point Stencil Derivative)
-        // Formula: f'(x) ≈ [ -f(x+2h) + 8f(x+h) - 8f(x-h) + f(x-2h) ] / 12h
         const turunan = (-f_plus2h + 8 * f_plus1h - 8 * f_min1h + f_min2h) / (12 * h);
 
         // 6. Koreksi Presisi (Membulatkan angka bising mikroskopis menjadi 0 murni)
         if (Math.abs(turunan) < 1e-12) return 0;
 
-        return turunan;
+        // 7. Bersihkan sisa derau floating-point (konsisten dengan fungsi integral & _rapikan)
+        return _rapikan(turunan);
     } catch (error) {
-        // 7. Pengamanan terhadap error internal fungsi f(x) milik user
         throw new Error(`MATEMATIKIN [dfung]: Terjadi kesalahan saat mengevaluasi fungsi. Detail: ${error.message}`);
     }
 };
